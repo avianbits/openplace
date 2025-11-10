@@ -1,3 +1,4 @@
+import { LeaderboardView, Prisma } from "@prisma/client";
 import { prisma } from "../config/database.js";
 
 export type LeaderboardType = "player" | "alliance" | "country" | "region" | "regionPlayers" | "regionAlliances";
@@ -133,6 +134,7 @@ export class LeaderboardService {
 		for (let attempt = 1; attempt <= maxRetries; attempt++) {
 			try {
 				return await operation();
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			} catch (error: any) {
 				// Check if it's a deadlock, write conflict, or timeout error
 				const isRetryableError = (
@@ -206,7 +208,7 @@ export class LeaderboardService {
 		try {
 			// Get date filter like global leaderboard
 			const dateFilter = this.getDateFilter(mode, this.warmupSnapshotTime || undefined);
-			let queryPromise: Promise<any>;
+			let queryPromise;
 			if (mode === "all-time") {
 				queryPromise = prisma.userRegionStats.groupBy({
 					by: ["userId"],
@@ -220,7 +222,7 @@ export class LeaderboardService {
 				});
 			} else {
 				// today/week/month from daily rollup
-				const where: any = { regionCityId: cityId };
+				const where: { regionCityId: number; date?: { gte: Date } } = { regionCityId: cityId };
 				if (dateFilter.paintedAt?.gte) {
 					where.date = { gte: dateFilter.paintedAt.gte };
 				}
@@ -238,10 +240,10 @@ export class LeaderboardService {
 				setTimeout(() => reject(new Error("Query timeout after 10 seconds")), 10_000)
 			);
 
-			const stats = await Promise.race([queryPromise, timeoutPromise]) as any;
+			const stats = await Promise.race([queryPromise, timeoutPromise]) as Prisma.UserRegionStatsGroupByOutputType[];
 
 			// Get user details for the grouped results
-			const userIds = stats.map((s: any) => s.userId)
+			const userIds = stats.map((s) => s.userId)
 				.filter(Boolean) as number[];
 			const users = await prisma.user.findMany({
 				where: { id: { in: userIds }, role: "user" },
@@ -262,16 +264,16 @@ export class LeaderboardService {
 			const userMap = new Map(users.map(u => [u.id, u]));
 
 			const result = stats
-				.filter((stat: any) => (stat._sum.pixelsPainted || 0) > 0) // Filter out users with 0 pixels
-				.map((stat: any) => {
+				.filter((stat) => (stat._sum?.pixelsPainted || 0) > 0) // Filter out users with 0 pixels
+				.map((stat) => {
 					const user = userMap.get(stat.userId);
 					if (!user) return null;
 
 					// Match format of global leaderboard enrichPlayerEntries
-					const entry: any = {
+					const entry = {
 						id: user.id,
 						name: user.nickname || user.name,
-						pixelsPainted: stat._sum.pixelsPainted || 0,
+						pixelsPainted: stat._sum?.pixelsPainted || 0,
 						allianceId: user.allianceId || 0,
 						allianceName: user.alliance?.name || "",
 						...(user.picture && { picture: user.picture }),
@@ -289,7 +291,7 @@ export class LeaderboardService {
 				})
 				.filter(Boolean);
 
-			return result;
+			return result as LeaderboardEntry[];
 		} catch {
 			return [];
 		}
@@ -299,7 +301,7 @@ export class LeaderboardService {
 		try {
 			// Time filter
 			const dateFilter = this.getDateFilter(mode, this.warmupSnapshotTime || undefined);
-			let allianceStats: any[] = [];
+			let allianceStats;
 			if (mode === "all-time") {
 				allianceStats = await prisma.userRegionStats.groupBy({
 					by: ["allianceId"],
@@ -311,9 +313,9 @@ export class LeaderboardService {
 					_max: { lastPaintedAt: true },
 					orderBy: { _sum: { pixelsPainted: "desc" } },
 					take: limit
-				} as any);
+				});
 			} else {
-				const where: any = { regionCityId: cityId, allianceId: { not: null } };
+				const where: Prisma.UserRegionStatsDailyWhereInput = { regionCityId: cityId, allianceId: { not: null } };
 				if (dateFilter.paintedAt?.gte) {
 					where.date = { gte: dateFilter.paintedAt.gte };
 				}
@@ -324,10 +326,10 @@ export class LeaderboardService {
 					_max: { lastPaintedAt: true },
 					orderBy: { _sum: { pixelsPainted: "desc" } },
 					take: limit
-				} as any);
+				});
 			}
 
-			const allianceIds = allianceStats.map((s: { allianceId: any; }) => s.allianceId)
+			const allianceIds = allianceStats.map((s: { allianceId: number | null; }) => s.allianceId)
 				.filter(Boolean) as number[];
 			const alliances = await prisma.alliance.findMany({
 				where: { id: { in: allianceIds } },
@@ -339,7 +341,7 @@ export class LeaderboardService {
 			const result = allianceStats.map((stat) => ({
 				id: stat.allianceId!,
 				name: allianceMap.get(stat.allianceId!) || "",
-				pixelsPainted: stat._sum.pixelsPainted || 0,
+				pixelsPainted: stat._sum?.pixelsPainted || 0,
 				allianceId: stat.allianceId!,
 				allianceName: allianceMap.get(stat.allianceId!) || "",
 				picture: ""
@@ -412,7 +414,7 @@ export class LeaderboardService {
 			}
 		}
 
-		const whereClause: any = {
+		const whereClause: Prisma.LeaderboardViewWhereInput = {
 			type,
 			mode
 		};
@@ -421,7 +423,7 @@ export class LeaderboardService {
 			whereClause.entityId = entityId;
 		}
 
-		const viewEntries = await prisma.leaderboardView.findMany({
+		const viewEntries: LeaderboardView[] = await prisma.leaderboardView.findMany({
 			where: whereClause,
 			orderBy: { rank: "asc" },
 			take: limit
@@ -437,9 +439,9 @@ export class LeaderboardService {
 		return await this.enrichEntries(viewEntries, type, mode);
 	}
 
-	private async enrichEntries(viewEntries: any[], type: LeaderboardType, mode?: LeaderboardMode): Promise<LeaderboardEntry[]> {
+	private async enrichEntries(viewEntries: LeaderboardView[], type: LeaderboardType, mode?: LeaderboardMode): Promise<LeaderboardEntry[]> {
 		const entityIds = viewEntries.map(e => e.entityId)
-			.filter(Boolean);
+			.filter(Boolean) as number[];
 
 		switch (type) {
 		case "player":
@@ -459,7 +461,7 @@ export class LeaderboardService {
 		}
 	}
 
-	private async enrichPlayerEntries(viewEntries: any[], userIds: number[]): Promise<LeaderboardEntry[]> {
+	private async enrichPlayerEntries(viewEntries: LeaderboardView[], userIds: number[]): Promise<LeaderboardEntry[]> {
 		const users = await prisma.user.findMany({
 			where: { id: { in: userIds }, role: "user" },
 			select: {
@@ -477,7 +479,7 @@ export class LeaderboardService {
 		const userMap = new Map(users.map(u => [u.id, u]));
 
 		return viewEntries.map(entry => {
-			const user = userMap.get(entry.entityId);
+			const user = userMap.get(entry.entityId as number);
 			if (!user) return null;
 
 			return {
@@ -494,7 +496,7 @@ export class LeaderboardService {
 			.filter(Boolean) as LeaderboardEntry[];
 	}
 
-	private async enrichAllianceEntries(viewEntries: any[], allianceIds: number[], mode?: LeaderboardMode): Promise<LeaderboardEntry[]> {
+	private async enrichAllianceEntries(viewEntries: LeaderboardView[], allianceIds: number[], mode?: LeaderboardMode): Promise<LeaderboardEntry[]> {
 		const alliances = await prisma.alliance.findMany({
 			where: { id: { in: allianceIds } },
 			select: { id: true, name: true, pixelsPainted: true }
@@ -503,7 +505,7 @@ export class LeaderboardService {
 		const allianceMap = new Map(alliances.map(a => [a.id, a]));
 
 		return viewEntries.map(entry => {
-			const alliance = allianceMap.get(entry.entityId);
+			const alliance = allianceMap.get(entry.entityId as number);
 			if (!alliance) return null;
 
 			return {
@@ -515,14 +517,14 @@ export class LeaderboardService {
 			.filter(Boolean) as LeaderboardEntry[];
 	}
 
-	private async enrichCountryEntries(viewEntries: any[], _countryIds: number[]): Promise<LeaderboardEntry[]> {
+	private async enrichCountryEntries(viewEntries: LeaderboardView[], _countryIds: number[]): Promise<LeaderboardEntry[]> {
 		return viewEntries.map(entry => ({
 			id: entry.entityId,
 			pixelsPainted: entry.pixelsPainted
-		}));
+		})) as LeaderboardEntry[];
 	}
 
-	private async enrichRegionEntries(viewEntries: any[], cityIds: number[]): Promise<LeaderboardEntry[]> {
+	private async enrichRegionEntries(viewEntries: LeaderboardView[], cityIds: number[]): Promise<LeaderboardEntry[]> {
 		const regions = await prisma.region.findMany({
 			where: { cityId: { in: cityIds } },
 			select: {
@@ -539,7 +541,7 @@ export class LeaderboardService {
 		const regionMap = new Map(regions.map(r => [r.cityId, r]));
 
 		return viewEntries.map(entry => {
-			const region = regionMap.get(entry.entityId);
+			const region = regionMap.get(entry.entityId as number);
 			if (!region) return null;
 
 			return {
@@ -755,7 +757,7 @@ export class LeaderboardService {
 		}
 	}
 
-	private getDateFilter(mode: LeaderboardMode, snapshotTime?: Date): any {
+	private getDateFilter(mode: LeaderboardMode, snapshotTime?: Date): { paintedAt?: { gte: Date } } {
 		const now = snapshotTime || new Date();
 
 		switch (mode) {
@@ -782,7 +784,7 @@ export class LeaderboardService {
 		}
 	}
 
-	private async updatePlayerLeaderboard(mode: LeaderboardMode, dateFilter: any): Promise<void> {
+	private async updatePlayerLeaderboard(mode: LeaderboardMode, dateFilter: { paintedAt?: { gte: Date } }): Promise<void> {
 		if (mode === "all-time") {
 			// For all-time, we don't need to store in leaderboardView since we query directly from user table
 			return;
@@ -813,7 +815,7 @@ export class LeaderboardService {
 		await this.updateLeaderboardEntries("player", mode, entries);
 	}
 
-	private async updateAllianceLeaderboard(mode: LeaderboardMode, dateFilter: any): Promise<void> {
+	private async updateAllianceLeaderboard(mode: LeaderboardMode, dateFilter: { paintedAt?: { gte: Date } }): Promise<void> {
 		if (mode === "all-time") {
 			// For all-time, use alliance.pixelsPainted which is now correctly calculated
 			const allianceStats = await prisma.alliance.findMany({
@@ -863,7 +865,7 @@ export class LeaderboardService {
 
 				// Count pixels painted by this member after joining alliance
 				// Combine alliance join date with time period filter
-				const paintedAtFilter: any = { gte: member.allianceJoinedAt };
+				const paintedAtFilter: { gte: Date } = { gte: member.allianceJoinedAt };
 
 				// Add time period filter if it exists (today/week/month)
 				if (dateFilter && "paintedAt" in dateFilter && dateFilter.paintedAt) {
@@ -903,7 +905,7 @@ export class LeaderboardService {
 		await this.updateLeaderboardEntries("alliance", mode, entries);
 	}
 
-	private async updateCountryLeaderboard(mode: LeaderboardMode, dateFilter: any): Promise<void> {
+	private async updateCountryLeaderboard(mode: LeaderboardMode, dateFilter: { paintedAt?: { gte: Date } }): Promise<void> {
 		// Use userRegionStats for better performance
 		let counts: { regionCountryId: number; count: bigint }[] = [];
 
@@ -956,7 +958,7 @@ export class LeaderboardService {
 		await this.updateLeaderboardEntries("country", mode, entries);
 	}
 
-	private async updateRegionLeaderboard(mode: LeaderboardMode, dateFilter: any): Promise<void> {
+	private async updateRegionLeaderboard(mode: LeaderboardMode, dateFilter: { paintedAt?: { gte: Date } }): Promise<void> {
 		// Use userRegionStats for better performance
 		let counts: { regionCityId: number; count: bigint }[] = [];
 
@@ -1009,6 +1011,29 @@ export class LeaderboardService {
 		await this.updateLeaderboardEntries("region", mode, entries);
 	}
 
+	private async warmupGlobalLeaderboards(): Promise<void> {
+		const modes: LeaderboardMode[] = ["today", "week", "month", "all-time"];
+		const types: LeaderboardType[] = ["player", "alliance", "country", "region"];
+
+		// Create snapshot timestamp for consistent data across all modes
+		this.warmupSnapshotTime = new Date();
+
+		// Queue all updates at once for parallel processing
+		for (const type of types) {
+			for (const mode of modes) {
+				// Queue update with snapshot time for consistency
+				this.queueUpdate(type, mode);
+			}
+		}
+
+		// Process all updates in parallel batches
+		if (!this.isUpdating) {
+			await this.processUpdateQueue();
+		}
+
+		// Clear snapshot time after warmup
+		this.warmupSnapshotTime = null;
+	}
 
 	async invalidateLeaderboard(type: LeaderboardType, mode?: LeaderboardMode, entityId?: number): Promise<void> {
 		const cacheKey = this.getCacheKey(type, mode || "all-time", entityId);
@@ -1057,31 +1082,6 @@ export class LeaderboardService {
 		};
 	}
 
-	async warmupGlobalLeaderboards(): Promise<void> {
-		const modes: LeaderboardMode[] = ["today", "week", "month", "all-time"];
-		const types: LeaderboardType[] = ["player", "alliance", "country", "region"];
-
-		// Create snapshot timestamp for consistent data across all modes
-		this.warmupSnapshotTime = new Date();
-
-		// Queue all updates at once for parallel processing
-		for (const type of types) {
-			for (const mode of modes) {
-				// Queue update with snapshot time for consistency
-				this.queueUpdate(type, mode);
-			}
-		}
-
-		// Process all updates in parallel batches
-		if (!this.isUpdating) {
-			await this.processUpdateQueue();
-		}
-
-		// Clear snapshot time after warmup
-		this.warmupSnapshotTime = null;
-	}
-
-
 	async initializeAllLeaderboards(): Promise<void> {
 		const types: LeaderboardType[] = ["player", "alliance", "country", "region"];
 
@@ -1109,7 +1109,29 @@ export class LeaderboardService {
 			}
 		}
 	}
+
+	async initializeWarmupScheduler(dev = false): Promise<void> {
+		console.log("Starting global leaderboard warmup scheduler (every 1 minute)");
+		this.warmupGlobalLeaderboards()
+			.catch(error => {
+				console.error("Initial warmup failed:", error);
+			});
+	
+		setInterval(async () => {
+			try {
+				await this.warmupGlobalLeaderboards();
+				if (dev) {
+					const timestamp = new Date()
+						.toISOString();
+					console.log(`[${timestamp}] Global leaderboards warmup completed`);
+				}
+			} catch (error) {
+				const timestamp = new Date()
+					.toISOString();
+				console.error(`[${timestamp}] Leaderboard warmup error:`, error);
+			}
+		}, 1 * 60 * 1000);
+	}
 }
 
 export const leaderboardService = new LeaderboardService();
-

@@ -6,10 +6,9 @@ import { ValidationError } from "../utils/error.js";
 export function handleServiceError(error: Error, res: Response) {
 	console.error("Service error:", error);
 
-	if (error instanceof ValidationError) {
+	if (error instanceof ValidationError)
 		return res.status(HTTP_STATUS.BAD_REQUEST)
 			.json(createErrorResponse(error.message, HTTP_STATUS.BAD_REQUEST));
-	}
 
 	switch (error.message) {
 	case "Bad Request":

@@ -1,15 +1,15 @@
 import { App } from "@tinyhttp/app";
 import { prisma } from "../config/database.js";
-import { leaderboardService } from "../services/leaderboard.js";
+import { LeaderboardMode, leaderboardService } from "../services/leaderboard.js";
 
-const validModes = new Set(["today", "week", "month", "all-time"]);
+const validModes = new Set<LeaderboardMode>(["today", "week", "month", "all-time"]);
 
 // TODO: Split up file
  
 export default function (app: App) {
 	app.get("/leaderboard/region/:mode/:country", async (req, res) => {
 		try {
-			const { mode, country } = req.params;
+			const { mode, country } = req.params as { mode: LeaderboardMode; country: string };
 
 			if (!mode || !validModes.has(mode)) {
 				return res.status(400)
@@ -20,7 +20,7 @@ export default function (app: App) {
 			const limitParam = Number.parseInt(String(req.query["limit"] || "50"));
 			const limit = Number.isNaN(limitParam) ? 50 : Math.max(1, Math.min(limitParam, 50));
 
-			const response = await leaderboardService.getLeaderboard("region", mode as any, countryId > 0 ? countryId : undefined, limit);
+			const response = await leaderboardService.getLeaderboard("region", mode, countryId > 0 ? countryId : undefined, limit);
 
 			return res.json(response);
 		} catch (error) {
@@ -32,14 +32,14 @@ export default function (app: App) {
 
 	app.get("/leaderboard/country/:mode", async (req, res) => {
 		try {
-			const { mode } = req.params;
+			const { mode } = req.params as { mode: LeaderboardMode };
 
 			if (!mode || !validModes.has(mode)) {
 				return res.status(400)
 					.json({ error: "Invalid mode", status: 400 });
 			}
 
-			const response = await leaderboardService.getLeaderboard("country", mode as any, undefined, 50);
+			const response = await leaderboardService.getLeaderboard("country", mode, undefined, 50);
 
 			return res.json(response);
 		} catch (error) {
@@ -51,14 +51,14 @@ export default function (app: App) {
 
 	app.get("/leaderboard/player/:mode", async (req, res) => {
 		try {
-			const { mode } = req.params;
+			const { mode } = req.params as { mode: LeaderboardMode };
 
 			if (!mode || !validModes.has(mode)) {
 				return res.status(400)
 					.json({ error: "Invalid mode", status: 400 });
 			}
 
-			const response = await leaderboardService.getLeaderboard("player", mode as any, undefined, 50);
+			const response = await leaderboardService.getLeaderboard("player", mode, undefined, 50);
 			return res.json(response);
 		} catch (error) {
 			console.error("Error fetching player leaderboard:", error);
@@ -69,14 +69,14 @@ export default function (app: App) {
 
 	app.get("/leaderboard/alliance/:mode", async (req, res) => {
 		try {
-			const { mode } = req.params;
+			const { mode } = req.params as { mode: LeaderboardMode };
 
 			if (!mode || !validModes.has(mode)) {
 				return res.status(400)
 					.json({ error: "Invalid mode", status: 400 });
 			}
 
-			const response = await leaderboardService.getLeaderboard("alliance", mode as any, undefined, 50);
+			const response = await leaderboardService.getLeaderboard("alliance", mode, undefined, 50);
 			return res.json(response);
 		} catch (error) {
 			console.error("Error fetching alliance leaderboard:", error);
@@ -87,7 +87,7 @@ export default function (app: App) {
 
 	app.get("/leaderboard/region/players/:city/:mode", async (req, res) => {
 		try {
-			const { city, mode } = req.params;
+			const { city, mode } = req.params as { city: string; mode: LeaderboardMode };
 			const paramId = Number.parseInt(city || "0");
 			if (!mode || !validModes.has(mode) || Number.isNaN(paramId)) {
 				return res.status(400)
@@ -100,7 +100,7 @@ export default function (app: App) {
 				regionCityId = regionById.cityId;
 			}
 
-			const response = await leaderboardService.getLeaderboard("regionPlayers", mode as any, regionCityId, 50);
+			const response = await leaderboardService.getLeaderboard("regionPlayers", mode, regionCityId, 50);
 
 			return res.json(response);
 		} catch (error) {
@@ -112,7 +112,7 @@ export default function (app: App) {
 
 	app.get("/leaderboard/region/alliances/:city/:mode", async (req, res) => {
 		try {
-			const { city, mode } = req.params;
+			const { city, mode } = req.params as { city: string; mode: LeaderboardMode };
 
 			if (!mode || !validModes.has(mode)) {
 				return res.status(400)
@@ -131,7 +131,7 @@ export default function (app: App) {
 				regionCityId = regionById.cityId;
 			}
 
-			const response = await leaderboardService.getLeaderboard("regionAlliances", mode as any, regionCityId, 50);
+			const response = await leaderboardService.getLeaderboard("regionAlliances", mode, regionCityId, 50);
 
 			return res.json(response);
 		} catch (error) {

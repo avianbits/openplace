@@ -2,32 +2,24 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../config/auth.js";
 import { prisma } from "../config/database.js";
 import { NextFunction, Response } from "@tinyhttp/app";
-import { AuthenticatedRequest } from "../types/index.js";
+import { AuthenticatedRequest, UserRole } from "../types/index.js";
 import { AuthToken } from "../services/auth.js";
 
 async function validateAuth(req: AuthenticatedRequest): Promise<boolean> {
 	const token = req.cookies?.j;
-	if (!token) {
-		return false;
-	}
+	if (!token) return false;
 
 	const decoded = jwt.verify(token, JWT_SECRET!) as AuthToken;
 
-	if (!decoded.userId || !decoded.sessionId) {
-		return false;
-	}
+	if (!decoded.userId || !decoded.sessionId) return false;
 
-	if (decoded.exp && Date.now() >= decoded.exp * 1000) {
-		return false;
-	}
+	if (decoded.exp && Date.now() >= decoded.exp * 1000) return false;
 
 	const session = await prisma.session.findUnique({
 		where: { id: decoded.sessionId }
 	});
 
-	if (!session || session.userId !== decoded.userId || session.expiresAt < new Date()) {
-		return false;
-	}
+	if (!session || session.userId !== decoded.userId || session.expiresAt < new Date()) return false;
 
 	req.user = {
 		id: decoded.userId,
@@ -59,3 +51,19 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
 	}
 }
 
+export async function adminMiddleware(req: AuthenticatedRequest, res: Response, next?: NextFunction) {
+	try {
+		const user = await prisma.user.findUnique({
+			where: { id: req.user!.id }
+		});
+		if (!user || user.role !== UserRole.Admin) {
+			return res.status(403)
+				.json({ error: "Forbidden", status: 403 });
+		}
+		return next?.();
+	} catch (error) {
+		console.error("Error fetching user:", error);
+		return res.status(500)
+			.json({ error: "Internal Server Error", status: 500 });
+	}
+};

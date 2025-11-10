@@ -1,36 +1,11 @@
-import { App, NextFunction, Response } from "@tinyhttp/app";
+import { App } from "@tinyhttp/app";
 import { prisma } from "../config/database.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { adminMiddleware, authMiddleware } from "../middleware/auth.js";
 import { AuthenticatedRequest, UserRole } from "../types/index.js";
 import { Prisma, Ticket } from "@prisma/client";
 import fs from "fs/promises";
 import { UserService } from "../services/user.js";
-
-const REPORT_REASONS = [
-	{ key: "doxxing", label: "Doxxing" },
-	{ key: "inappropriate_content", label: "Inappropriate Content" },
-	{ key: "hate_speech", label: "Hate Speech" },
-	{ key: "bot", label: "Bot" },
-	{ key: "other", label: "Other" },
-	{ key: "griefing", label: "Griefing" }
-];
-
-export const adminMiddleware = async (req: AuthenticatedRequest, res: Response, next?: NextFunction) => {
-	try {
-		const user = await prisma.user.findUnique({
-			where: { id: req.user!.id }
-		});
-		if (!user || user.role !== UserRole.Admin) {
-			return res.status(403)
-				.json({ error: "Forbidden", status: 403 });
-		}
-		return next?.();
-	} catch (error) {
-		console.error("Error fetching user:", error);
-		return res.status(500)
-			.json({ error: "Internal Server Error", status: 500 });
-	}
-};
+import { REPORT_REASONS } from "../utils/report-reasons.js";
 
 const userService = new UserService(prisma);
 
@@ -67,7 +42,7 @@ export default function (app: App) {
 				where: { reportedUserId: id, resolution: "timeout" }
 			});
 
-			const sameIPOr: any[] = [];
+			const sameIPOr: { lastIP?: string; registrationIP?: string }[] = [];
 			if (user.lastIP) sameIPOr.push({ lastIP: user.lastIP });
 			if (user.registrationIP) sameIPOr.push({ registrationIP: user.registrationIP });
 			const sameIPAccounts = sameIPOr.length > 0

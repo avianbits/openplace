@@ -1,11 +1,11 @@
-import { App, Response } from "@tinyhttp/app";
+import { App, NextFunction, Response } from "@tinyhttp/app";
 import { prisma } from "../config/database.js";
 import { TicketService } from "../services/ticket.js";
 import { AuthenticatedRequest, BanReason, TicketResolution } from "../types/index.js";
-import { authMiddleware } from "../middleware/auth.js";
-import { adminMiddleware } from "./admin.js";
+import { adminMiddleware, authMiddleware } from "../middleware/auth.js";
 import { Ticket } from "@prisma/client";
 import multer from "multer";
+import { RequestHandler } from "sirv";
 
 const ticketService = new TicketService(prisma);
 
@@ -85,7 +85,9 @@ export default function (app: App) {
 		}
 	});
 
-	const useMulterSingle = (field: string) => (req: any, res: any, next?: any) => (imageUpload.single(field) as any)(req as any, res as any, next as any);
+	const useMulterSingle = (field: string) => 
+		(req: AuthenticatedRequest, res: Response, next?: NextFunction) => 
+			(imageUpload.single(field) as RequestHandler)(req, res, next);
 
 	app.post("/report-user", authMiddleware, useMulterSingle("image"), async (req: AuthenticatedRequest, res) => {
 		try {

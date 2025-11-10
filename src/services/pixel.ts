@@ -1,5 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
-import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { Canvas, createCanvas, Image, loadImage } from "@napi-rs/canvas";
 import { checkColorUnlocked, COLOR_PALETTE } from "../utils/colors.js";
 import { calculateChargeRecharge } from "../utils/charges.js";
 import { Region, RegionService } from "./region.js";
@@ -53,6 +53,14 @@ export interface PixelInfoResult {
 		verified?: boolean;
 	}[];
 	region: Region;
+}
+
+interface ValidPixel { 
+	x: number;
+	y: number;
+	colorId: number;
+	coordKey?: string;
+	region?: Region | undefined
 }
 
 function calculateLevel(pixelsPainted: number): number {
@@ -305,8 +313,8 @@ export class PixelService {
 	}
 
 	private async processCanvasChunk(pixels: { x: number; y: number; colorId: number }[], tileX: number, tileY: number, season: number): Promise<void> {
-		let canvas: any = null;
-		let image: any = null;
+		let canvas: Canvas | null = null;
+		let image: Image | null = null;
 
 		try {
 			await this.prisma.$transaction(async (tx) => {
@@ -429,7 +437,7 @@ export class PixelService {
 			pairedCoords.push({ x: coords[i], y: coords[i + 1] });
 		}
 
-		const validPixels: { x: number; y: number; colorId: number; coordKey: string; region?: Region | undefined }[] = [];
+		const validPixels: ValidPixel[] = [];
 		const uniqueCoords = new Set<string>();
 
 		for (const [i, colorId] of colors.entries()) {
@@ -482,8 +490,8 @@ export class PixelService {
 		const regionMap = new Map(regionResults.map(r => [r.coordKey, r.region]));
 
 		for (const pixel of validPixels) {
-			pixel.region = regionMap.get(pixel.coordKey) ?? undefined;
-			delete (pixel as any).coordKey;
+			pixel.region = regionMap.get(pixel.coordKey as string) ?? undefined;
+			delete pixel.coordKey;
 		}
 
 		const painted = validPixels.length;
@@ -495,12 +503,11 @@ export class PixelService {
 		let discountedPixels = 0;
 
 		const flagsBitmap = user.flagsBitmap
-		? WplaceBitMap.fromBase64(Buffer.from(user.flagsBitmap)
-			.toString("base64"))
-		: new WplaceBitMap();
+			? WplaceBitMap.fromBase64(Buffer.from(user.flagsBitmap)
+				.toString("base64"))
+			: new WplaceBitMap();
 
 		for (const pixel of validPixels) {
-
 			if (pixel.region && flagsBitmap.get(pixel.region.flagId)) {
 				totalChargeCost += 0.9;
 				discountedPixels++;
@@ -610,6 +617,7 @@ export class PixelService {
 					isolationLevel: "ReadCommitted" // Use read committed to reduce lock contention
 				});
 				break; // Success, exit retry loop
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			} catch (error: any) {
 				retries--;
 
@@ -659,7 +667,7 @@ export class PixelService {
 		return { painted };
 	}
 
-	private async updateRegionStats(userId: number, pixels: any[]): Promise<void> {
+	private async updateRegionStats(userId: number, pixels: { region?: { cityId?: number; countryId?: number } | undefined }[]): Promise<void> {
 		const user = await this.prisma.user.findUnique({
 			where: { id: userId },
 			select: { allianceId: true }
@@ -667,7 +675,7 @@ export class PixelService {
 
 		const allianceId = user?.allianceId;
 
-		const regionStatsMap = new Map<string, { regionCityId?: number; regionCountryId?: number; count: number }>();
+		const regionStatsMap = new Map<string, { regionCityId: number | undefined; regionCountryId: number | undefined; count: number }>();
 
 		for (const pixel of pixels) {
 			if (!pixel.region) continue;
@@ -730,7 +738,7 @@ export class PixelService {
 		}
 	}
 
-	private async invalidateRelevantLeaderboards(_userId: number, pixels: any[]): Promise<void> {
+	private async invalidateRelevantLeaderboards(_userId: number, pixels: ValidPixel[]): Promise<void> {
 		const modes: ("today" | "week" | "month" | "all-time")[] = ["today", "week", "month", "all-time"];
 		const uniqueCityIds = new Set<number>();
 
