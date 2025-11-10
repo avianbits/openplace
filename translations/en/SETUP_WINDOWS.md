@@ -1,4 +1,4 @@
-# OpenPlace — Windows Setup Guide
+# openplace — Windows Setup Guide
 
 This guide will help you prepare a **Windows** machine to run **openplace**.
 
@@ -121,7 +121,7 @@ https://{your-local-IP}:8080
 ```
 
 > [WARNING ⚠️]
-> ⚠️ **Important:** OpenPlace only works over HTTPS. If you try HTTP, you’ll get **400 Bad Request**.
+> ⚠️ **Important:** openplace only works over HTTPS. If you try HTTP, you’ll get **400 Bad Request**.
 
 
 ---

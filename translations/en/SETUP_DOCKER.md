@@ -1,4 +1,4 @@
-# OpenPlace — Docker Setup Guide
+# openplace — Docker Setup Guide
 
 This guide will help you run **openplace** with Docker.
 
@@ -51,7 +51,7 @@ This will start:
 
 ## 4. Access the application
 
-Once all services are running, you can access OpenPlace at:
+Once all services are running, you can access openplace at:
 
 ```
 http://localhost

@@ -1,4 +1,4 @@
-# OpenPlace — Panduan Pengaturan Docker
+# openplace — Panduan Pengaturan Docker
 
 Panduan ini akan membantu Anda menjalankan **openplace** dengan Docker..
 
@@ -51,7 +51,7 @@ Ini akan memulai:
 
 ## 4. Akses aplikasinya
 
-Setelah semua servis berjalan, kamu bisa akses OpenPlace di:
+Setelah semua servis berjalan, kamu bisa akses openplace di:
 
 ```
 http://localhost

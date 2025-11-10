@@ -1,61 +1,78 @@
 <template>
-  <button
-    class="avatar-button"
-    @click="$emit('click', $event)"
-  >
-    <div style="position: relative;">
-      <Avatar
-        :label="user.username.charAt(0).toUpperCase()"
-        :image="user.avatar || undefined"
-        size="large"
-        shape="circle"
-        class="avatar-button-avatar"
-      />
-      <Badge
-        :value="user.level"
-        severity="secondary"
-        class="avatar-button-badge"
-      />
-    </div>
-  </button>
+	<div class="avatar">
+		<OverlayBadge
+			:value="user.level || undefined"
+			size="small"
+			class="avatar-badge"
+		>
+			<Avatar
+				:label="user.username.charAt(0).toUpperCase()"
+				:image="user.avatar || undefined"
+				size="large"
+				shape="circle"
+				class="avatar-avatar"
+			/>
+		</OverlayBadge>
+
+		<div
+			v-if="user.levelProgress !== undefined"
+			class="avatar-progress"
+			:style="{
+				'--progress': `${user.levelProgress}%`
+			}"
+		/>
+	</div>
 </template>
 
 <script setup lang="ts">
 import Avatar from "primevue/avatar";
-import Badge from "primevue/badge";
+import OverlayBadge from "primevue/overlaybadge";
 
 defineProps<{
 	user: {
 		username: string;
 		level: number;
+		levelProgress?: number;
 		avatar: string;
 	};
-}>();
-
-defineEmits<{
-	click: [event: Event];
 }>();
 </script>
 
 <style scoped>
-.avatar-button {
+.avatar {
 	position: relative;
-	background: transparent;
-	padding: 0;
-	margin: 0;
-	border: 0;
+	display: inline-block;
 }
 
-.avatar-button-avatar {
-	background-color: #4ade80;
-	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.avatar-button-badge {
+.avatar-progress {
 	position: absolute;
-	bottom: -5px;
-	right: -5px;
-	background-color: #a855f7;
-	color: white;
+	inset: -1px;
+	z-index: 10;
+	border-radius: 50%;
+	background: conic-gradient(
+		var(--p-primary-color) 0%,
+		var(--p-primary-color) var(--progress),
+		transparent var(--progress),
+		transparent 100%
+	);
+	mask: radial-gradient(
+		circle,
+		transparent 0%,
+		transparent calc(50% + 5px),
+		black calc(50% + 5.5px),
+		black 100%
+	);
+	pointer-events: none;
+	transition: --progress 1s ease;
+}
+
+.avatar :deep(.p-overlaybadge .p-badge) {
+	--p-badge-padding: 0 0.25rem;
+	inset: auto 0 0 auto;
+	z-index: 11;
+	transform: translate(25%, 25%);
+	transform-origin: 100% 100%;
+	outline-width: 0;
+	border-radius: 999px;
 }
 </style>

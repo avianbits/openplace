@@ -1,4 +1,4 @@
-import { App } from "@tinyhttp/app";
+import { App, NextFunction, Response } from "@tinyhttp/app";
 import multer from "multer";
 import { authMiddleware } from "../middleware/auth.js";
 import { handleServiceError } from "../middleware/errorHandler.js";
@@ -7,6 +7,7 @@ import { validateUpdateUser } from "../validators/user.js";
 import { createErrorResponse, HTTP_STATUS } from "../utils/response.js";
 import { prisma } from "../config/database.js";
 import { AuthenticatedRequest } from "../types/index.js";
+import { RequestHandler } from "sirv";
 
 // Security validation functions
 function validateImageContent(buffer: Buffer, mimeType: string): boolean {
@@ -88,7 +89,9 @@ const upload = multer({
 	}
 });
 
-const useMulterSingle = (field: string) => (req: any, res: any, next?: any) => (upload.single(field) as any)(req as any, res as any, next as any);
+const useMulterSingle = (field: string) => 
+	(req: AuthenticatedRequest, res: Response, next?: NextFunction) => 
+		(upload.single(field) as RequestHandler)(req, res, next);
 
 export default function (app: App) {
 	app.get("/me", authMiddleware, async (req: AuthenticatedRequest, res) => {
@@ -168,8 +171,8 @@ export default function (app: App) {
 			}
 
 			// Handle file upload
-			if ((req as any).file) {
-				const file = (req as any).file;
+			if (req.file) {
+				const file = req.file as Express.Multer.File;
 
 				// Additional file size check (redundant but safe)
 				if (file.size > 2 * 1024 * 1024) {
@@ -225,7 +228,7 @@ export default function (app: App) {
 
 	app.post("/me/profile-picture/change", authMiddleware, async (req: AuthenticatedRequest, res) => {
 		try {
-			const { pictureId } = req.body || {};
+			const { pictureId } = req.body ?? {};
 
 			// If no pictureId provided (empty payload {}), set empty profile picture
 			if (pictureId === undefined || pictureId === null) {
@@ -257,7 +260,7 @@ export default function (app: App) {
 
 	app.delete("/me", authMiddleware, async (req: AuthenticatedRequest, res) => {
 		try {
-			const { confirmText } = req.body || {};
+			const { confirmText } = req.body ?? {};
 			const currentNickname = await userService.getNickname(req.user!.id);
 			if (!currentNickname || confirmText !== currentNickname) {
 				return res.status(HTTP_STATUS.BAD_REQUEST)

@@ -1,158 +1,194 @@
 <template>
-  <div class="app-container">
-    <Toast />
-    <ClientOnly>
-      <Map
-        ref="mapRef"
-        :pixels="pixels"
-        :is-drawing="isPaintOpen"
-        :is-satellite="isSatellite"
-        :favorite-locations="userProfile?.favoriteLocations"
-        :selected-pixel-coords="isPixelInfoOpen ? selectedPixelCoords : null"
-        @map-click="handleMapClick"
-        @map-right-click="handleMapRightClick"
-        @draw-pixels="handleDrawPixels"
-        @bearing-change="mapBearing = $event"
-        @favorite-click="handleFavoriteClick"
-      />
-      <template #fallback>
-        <div class="map-loading" />
-      </template>
-    </ClientOnly>
+	<div
+		class="app-container"
+		:style="{
+			'visibility': isLoading ? 'hidden' : undefined
+		}"
+	>
+		<Toast />
 
-    <div class="app-overlays">
-      <div class="app-overlays-zoom">
-        <Button
-          severity="secondary"
-          raised
-          rounded
-          aria-label="Zoom in"
-          @click="zoomIn"
-        >
-          <Icon name="zoom_in" />
-        </Button>
+		<ClientOnly>
+			<Map
+				ref="mapRef"
+				:initial-location="savedLocation"
+				:pixels="pixels"
+				:is-drawing="isPaintOpen"
+				:is-satellite="isSatellite"
+				:favorite-locations="userProfile?.favoriteLocations"
+				:selected-pixel-coords="selectedPixelCoords"
+				@map-click="handleMapClick"
+				@map-right-click="handleMapRightClick"
+				@draw-pixels="handleDrawPixels"
+				@bearing-change="mapBearing = $event"
+				@favorite-click="handleFavoriteClick"
+				@save-current-location="saveCurrentLocation"
+			/>
+			<template #fallback>
+				<div class="map-loading" />
+			</template>
+		</ClientOnly>
 
-        <Button
-          severity="secondary"
-          raised
-          rounded
-          aria-label="Zoom out"
-          @click="zoomOut"
-        >
-          <Icon name="zoom_out" />
-        </Button>
+		<div class="app-overlays">
+			<div class="app-overlays-zoom">
+				<Button
+					severity="secondary"
+					raised
+					rounded
+					class="app-overlays--button"
+					aria-label="About openplace"
+					@click="handleAbout"
+				>
+					<Icon name="info" />
+				</Button>
 
-        <Button
-          v-if="mapBearing !== 0"
-          severity="secondary"
-          raised
-          rounded
-          aria-label="Reset map rotation"
-          @click="resetMapRotation"
-        >
-          <Icon name="compass" />
-        </Button>
-      </div>
+				<Button
+					severity="secondary"
+					raised
+					rounded
+					class="app-overlays--button"
+					aria-label="Zoom in"
+					@click="zoomIn"
+				>
+					<Icon name="zoom_in" />
+				</Button>
 
-      <div class="app-overlays-profile">
-        <div v-if="isLoggedIn">
-          <UserAvatar
-            :user="user"
-            @click="toggleUserMenu"
-          />
+				<Button
+					severity="secondary"
+					raised
+					rounded
+					class="app-overlays--button"
+					aria-label="Zoom out"
+					@click="zoomOut"
+				>
+					<Icon name="zoom_out" />
+				</Button>
 
-          <UserMenu
-            ref="userMenuRef"
-            :is-open="isUserMenuOpen"
-            :user="user"
-            @close="isUserMenuOpen = false"
-            @logout="handleLogout"
-          />
-        </div>
+				<Button
+					v-if="mapBearing !== 0"
+					severity="secondary"
+					raised
+					rounded
+					class="app-overlays--button"
+					aria-label="Reset map rotation"
+					@click="resetMapRotation"
+				>
+					<Icon name="compass" />
+				</Button>
+			</div>
 
-        <Button
-          v-else
-          severity="primary"
-          raised
-          rounded
-          aria-label="Log in"
-          @click="handleLogin"
-        >
-          Log in
-        </Button>
+			<div class="app-overlays-profile">
+				<div v-if="isLoggedIn">
+					<Button
+						severity="secondary"
+						raised
+						rounded
+						class="app-overlays--avatar-button"
+						aria-label="Toggle user menu"
+						@click="toggleUserMenu"
+					>
+						<UserAvatar
+							:user="user"
+						/>
+					</Button>
 
-        <Button
-          severity="secondary"
-          raised
-          rounded
-          aria-label="Toggle satellite"
-          @click="toggleSatellite"
-        >
-          <Icon :name="isSatellite ? 'map_vector' : 'map_satellite'" />
-        </Button>
+					<UserMenu
+						ref="userMenuRef"
+						:is-open="isUserMenuOpen"
+						:user="user"
+						@close="isUserMenuOpen = false"
+						@logout="handleLogout"
+					/>
+				</div>
 
-        <Button
-          severity="secondary"
-          raised
-          rounded
-          aria-label="Go to random pixel"
-          :loading="isLoadingRandom"
-          @click="goToRandom"
-        >
-          <Icon name="explore" />
-        </Button>
-      </div>
+				<Button
+					v-else
+					severity="primary"
+					raised
+					rounded
+					aria-label="Log in"
+					@click="handleLogin"
+				>
+					Log in
+				</Button>
 
-      <div
-        v-if="isLoggedIn"
-        class="app-overlays-paint"
-      >
-        <PaintButton
-          :charges="currentCharges ?? 0"
-          :max-charges="maxCharges ?? 0"
-          :is-drawing="isPaintOpen"
-          :time-until-next="formattedTime"
-          @click="isPaintOpen = !isPaintOpen"
-        />
-      </div>
+				<Button
+					severity="secondary"
+					raised
+					rounded
+					class="app-overlays--button"
+					aria-label="Toggle satellite"
+					@click="toggleSatellite"
+				>
+					<Icon :name="isSatellite ? 'map_vector' : 'map_satellite'" />
+				</Button>
 
-      <div
-        v-if="isLoggedIn"
-        class="app-overlays-palette"
-      >
-        <ColorPalette
-          :is-open="isPaintOpen"
-          :selected-color="selectedColor"
-          :is-eraser-mode="isEraserMode"
-          :charges="currentCharges ?? 0"
-          :max-charges="maxCharges ?? 0"
-          :pixel-count="pixels.length"
-          :time-until-next="formattedTime"
-          :extra-colors-bitmap="userProfile?.extraColorsBitmap ?? null"
-          @color-select="handleColorSelect"
-          @close="handleClosePaint"
-          @toggle-eraser="isEraserMode = !isEraserMode"
-          @submit="handleSubmitPixels"
-        />
-      </div>
-    </div>
+				<Button
+					severity="secondary"
+					raised
+					rounded
+					class="app-overlays--button"
+					aria-label="Go to random pixel"
+					:loading="isLoadingRandom"
+					@click="goToRandom"
+				>
+					<Icon name="explore" />
+				</Button>
+			</div>
 
-    <PixelInfo
-      :is-open="isPixelInfoOpen"
-      :coords="selectedPixelCoords!"
-      @close="isPixelInfoOpen = false"
-      @report="handleReportPixel"
-      @favorite-added="handleFavoriteChanged"
-      @favorite-removed="handleFavoriteChanged"
-    />
-  </div>
+			<div
+				v-if="isLoggedIn"
+				class="app-overlays-paint"
+			>
+				<PaintButton
+					:charges="currentCharges ?? 0"
+					:max-charges="maxCharges ?? 0"
+					:is-drawing="isPaintOpen"
+					:time-until-next="formattedTime"
+					@click="handlePaintButtonClick"
+				/>
+			</div>
+
+			<div
+				v-if="isLoggedIn"
+				class="app-overlays-palette"
+			>
+				<ColorPalette
+					:is-open="isPaintOpen"
+					:selected-color="selectedColor"
+					:is-eraser-mode="isEraserMode"
+					:charges="currentCharges ?? 0"
+					:max-charges="maxCharges ?? 0"
+					:pixel-count="pixels.length"
+					:time-until-next="formattedTime"
+					:extra-colors-bitmap="userProfile?.extraColorsBitmap ?? 0"
+					@color-select="handleColorSelect"
+					@close="handleClosePaint"
+					@toggle-eraser="isEraserMode = !isEraserMode"
+					@submit="handleSubmitPixels"
+				/>
+			</div>
+		</div>
+
+		<PixelInfo
+			:is-open="selectedPixelCoords !== null"
+			:coords="selectedPixelCoords"
+			@close="selectedPixelCoords = null"
+			@report="handleReportPixel"
+			@favorite-added="handleFavoriteChanged"
+			@favorite-removed="handleFavoriteChanged"
+		/>
+
+		<AboutDialog
+			:is-open="isAboutOpen"
+			@close="isAboutOpen = false"
+		/>
+	</div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Toast from "primevue/toast";
-import { useToast } from "primevue/usetoast";
-import Map from "~/components/Map.vue";
+import Map, { type LocationWithZoom } from "~/components/Map.vue";
 import PaintButton from "~/components/PaintButton.vue";
 import ColorPalette from "~/components/ColorPalette.vue";
 import UserAvatar from "~/components/UserAvatar.vue";
@@ -162,6 +198,7 @@ import { CLOSE_ZOOM_LEVEL, getPixelId, type LngLat, lngLatToTileCoords, type Til
 import { type UserProfile, useUserProfile } from "~/composables/useUserProfile";
 import { useCharges } from "~/composables/useCharges";
 import { usePaint } from "~/composables/usePaint";
+import { useErrorToast } from "~/composables/useErrorToast";
 
 interface Pixel {
 	id: string;
@@ -169,10 +206,14 @@ interface Pixel {
 	color: string;
 }
 
+const USER_RELOAD_INTERVAL = 15_000;
+const DEFAULT_COORDS: LngLat = [151.208, -33.852];
+
 const isPaintOpen = ref(false);
 const isSatellite = ref(false);
 const isUserMenuOpen = ref(false);
 const isPixelInfoOpen = ref(false);
+const isAboutOpen = ref(false);
 const selectedColor = ref("rgba(0,0,0,1)");
 const isEraserMode = ref(false);
 const pixels = ref<Pixel[]>([]);
@@ -186,7 +227,7 @@ const isLoadingRandom = ref(false);
 const isAnimatingToRandom = ref(false);
 const randomTargetCoords = ref<{ lat: number; lng: number; zoom: number } | null>(null);
 
-const toast = useToast();
+let lastUserProfileFetch = Date.now();
 
 const {
 	currentCharges,
@@ -194,10 +235,43 @@ const {
 	formattedTime,
 	decrementCharge,
 	incrementCharge,
-	initialize
+	initialize,
+	commitPixels
 } = useCharges();
 
+const { fetchUserProfile, logout, login } = useUserProfile();
+const { submitPixels } = usePaint();
+const { showToast, handleError } = useErrorToast();
+
 const isLoggedIn = computed(() => userProfile.value !== null);
+
+const savedLocation = computed((): LocationWithZoom => {
+	let location: { lng: number; lat: number; zoom: number; } | null = null;
+	try {
+		const locationStr = localStorage["location"];
+		if (locationStr) {
+			location = JSON.parse(locationStr);
+		}
+	} catch {
+		// Ignore
+	}
+
+	return {
+		center: location ? [location.lng, location.lat] : DEFAULT_COORDS,
+		zoom: location?.zoom ?? CLOSE_ZOOM_LEVEL
+	};
+});
+
+const saveCurrentLocation = () => {
+	try {
+		localStorage["location"] = JSON.stringify({
+			...mapRef.value.getCenter(),
+			zoom: mapRef.value.getZoom()
+		});
+	} catch {
+		// Ignore?
+	}
+};
 
 const user = computed<UserProfile | null>(() => {
 	const value = userProfile.value;
@@ -210,6 +284,7 @@ const user = computed<UserProfile | null>(() => {
 	return {
 		...value,
 		username: value.name,
+		verified: value.verified,
 		level: Math.floor(value.level),
 		levelProgress,
 		pixelsPainted: Math.floor(value.pixelsPainted),
@@ -217,30 +292,59 @@ const user = computed<UserProfile | null>(() => {
 	};
 });
 
-const { fetchUserProfile, logout, login } = useUserProfile();
-const { submitPixels } = usePaint();
-
-const handlePopState = () => {
-	// Handle browser back/forward navigation
-	const urlParams = new URLSearchParams(globalThis.location.search);
-	const lat = urlParams.get("lat");
-	const lng = urlParams.get("lng");
-	const zoom = urlParams.get("zoom");
-
-	if (lat && lng && mapRef.value) {
-		const latitude = Number.parseFloat(lat);
-		const longitude = Number.parseFloat(lng);
-		const zoomLevel = zoom ? Number.parseFloat(zoom) : 15;
-
-		if (!Number.isNaN(latitude) && !Number.isNaN(longitude)) {
-			// Fly with animation on back/forward navigation
-			mapRef.value.flyToLocation(latitude, longitude, zoomLevel);
+const updateUserProfile = async () => {
+	try {
+		lastUserProfileFetch = Date.now();
+		const profile = await fetchUserProfile();
+		userProfile.value = profile;
+		if (profile) {
+			initialize(
+				profile.charges.count,
+				profile.charges.max,
+				profile.charges.cooldownMs
+			);
 		}
+	} catch (error) {
+		console.error("Failed to fetch user profile:", error);
+		handleError(error);
+	}
+};
+
+const handleWindowFocus = async () => {
+	const now = Date.now();
+	if (now - lastUserProfileFetch < USER_RELOAD_INTERVAL) {
+		return;
+	}
+
+	try {
+		lastUserProfileFetch = Date.now();
+		const profile = await fetchUserProfile();
+		userProfile.value = profile;
+		if (profile) {
+			initialize(
+				profile.charges.count,
+				profile.charges.max,
+				profile.charges.cooldownMs
+			);
+		}
+	} catch (error) {
+		console.error("Failed to refresh user profile on focus:", error);
+		handleError(error);
+	}
+};
+
+const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+	if (mapRef.value?.hasUncommittedPixels?.()) {
+		// Show confirm navigation prompt
+		e.preventDefault();
+		e.returnValue = "";
+		return "";
 	}
 };
 
 onMounted(async () => {
 	try {
+		lastUserProfileFetch = Date.now();
 		userProfile.value = await fetchUserProfile();
 		if (userProfile.value) {
 			initialize(
@@ -251,33 +355,97 @@ onMounted(async () => {
 		}
 	} catch (error) {
 		console.error("Failed to fetch user profile:", error);
+		handleError(error);
 	}
 
-	isLoading.value = false;
+	requestAnimationFrame(() => isLoading.value = false);
+
+	// Show about if first visit
+	const showedInfo = Boolean(localStorage["showed:info"]);
+	if (!showedInfo) {
+		isAboutOpen.value = true;
+		localStorage["showed:info"] = "true";
+	}
 
 	// Jump to url params
-	const params = new URLSearchParams(globalThis.location.search);
+	const params = new URLSearchParams(location.search);
 	const latStr = params.get("lat");
 	const lngStr = params.get("lng");
 	const zoomStr = params.get("zoom");
 
 	if (latStr && lngStr && mapRef.value) {
 		const [lat, lng] = [Number.parseFloat(latStr), Number.parseFloat(lngStr)];
-		const zoom = Number.parseFloat(zoomStr || "") || 15;
-
 		if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+			const zoom = Number.parseFloat(zoomStr ?? "") || CLOSE_ZOOM_LEVEL;
 			mapRef.value.jumpToLocation(lat, lng, zoom);
 		}
 	}
 
-	globalThis.addEventListener("popstate", handlePopState);
+	globalThis.addEventListener("popstate", popMapLocation);
+	globalThis.addEventListener("focus", handleWindowFocus);
+	globalThis.addEventListener("beforeunload", handleBeforeUnload);
 	document.addEventListener("keydown", handleKeyDown);
 });
 
 onUnmounted(() => {
-	globalThis.removeEventListener("popstate", handlePopState);
+	globalThis.removeEventListener("popstate", popMapLocation);
+	globalThis.removeEventListener("focus", handleWindowFocus);
+	globalThis.removeEventListener("beforeunload", handleBeforeUnload);
 	document.removeEventListener("keydown", handleKeyDown);
 });
+
+const pushMapLocation = (center?: LngLat, zoom?: number) => {
+	if (!mapRef.value) {
+		return;
+	}
+
+	let lng = 0;
+	let lat = 0;
+	if (center) {
+		[lng, lat] = center;
+	} else {
+		const mapCenter = mapRef.value.getCenter();
+		[lng, lat] = [mapCenter.lng, mapCenter.lat];
+	}
+	const zoomValue = zoom ?? mapRef.value.getZoom();
+
+	const url = new URL(location.href);
+	const newParams = new URLSearchParams([
+		["lat", lat.toFixed(6)],
+		["lng", lng.toFixed(6)],
+		["zoom", zoomValue.toFixed(2)]
+	]);
+
+	const anyChanged = [...newParams.entries()]
+		.some(([key, value]) => url.searchParams.get(key) !== value);
+	if (anyChanged) {
+		for (const [key, value] of newParams.entries()) {
+			url.searchParams.set(key, value);
+		}
+
+		history.pushState({}, "", url);
+	}
+};
+
+const popMapLocation = () => {
+	if (!mapRef.value) {
+		return;
+	}
+
+	const params = new URLSearchParams(location.search);
+	const latStr = params.get("lat");
+	const lngStr = params.get("lng");
+	const zoomStr = params.get("zoom");
+
+	if (latStr && lngStr) {
+		const [lat, lng] = [Number.parseFloat(latStr), Number.parseFloat(lngStr)];
+		const zoom = Number.parseFloat(zoomStr ?? "") || CLOSE_ZOOM_LEVEL;
+
+		if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+			mapRef.value.flyToLocation(lat, lng, zoom);
+		}
+	}
+};
 
 const clearPendingPixels = () => {
 	const pixelCount = pixels.value.length;
@@ -296,6 +464,7 @@ const handleClosePaint = () => {
 
 const handleColorSelect = (color: string) => {
 	selectedColor.value = color;
+	isEraserMode.value = false;
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
@@ -305,25 +474,45 @@ const handleKeyDown = (event: KeyboardEvent) => {
 	}
 };
 
-const drawPixelAtCoords = (tileCoords: TileCoords) => {
-	if (!isPaintOpen.value || !currentCharges.value || currentCharges.value <= 0) {
-		return;
-	}
-
+const erasePixelAtCoords = (tileCoords: TileCoords) => {
 	const pixelId = getPixelId(tileCoords);
 	const existingPixelIndex = pixels.value.findIndex(item => item.id === pixelId);
 
+	if (existingPixelIndex !== -1) {
+		pixels.value = pixels.value.filter((_, index) => index !== existingPixelIndex);
+		incrementCharge();
+		mapRef.value?.drawPixelOnCanvas(tileCoords, "rgba(0,0,0,0)");
+	}
+};
+
+const drawPixelAtCoords = (tileCoords: TileCoords) => {
+	if (!isPaintOpen.value) {
+		return;
+	}
+
 	if (isEraserMode.value) {
-		if (existingPixelIndex !== -1) {
-			pixels.value = pixels.value.filter((_, index) => index !== existingPixelIndex);
-			incrementCharge();
-		}
+		// Eraser mode
+		erasePixelAtCoords(tileCoords);
 	} else {
-		const color = selectedColor.value;
+		// Paint mode
+		if (currentCharges.value === null) {
+			return;
+		}
+
+		if (currentCharges.value <= 0) {
+			showToast({
+				severity: "warn",
+				summary: "Not enough charges"
+			});
+			return;
+		}
+
+		const pixelId = getPixelId(tileCoords);
+		const existingPixelIndex = pixels.value.findIndex(item => item.id === pixelId);
 		const newPixel: Pixel = {
 			id: pixelId,
 			tileCoords,
-			color
+			color: selectedColor.value
 		};
 
 		if (existingPixelIndex === -1) {
@@ -335,9 +524,7 @@ const drawPixelAtCoords = (tileCoords: TileCoords) => {
 	}
 };
 
-const drawPixel = (coords: LngLat) => {
-	drawPixelAtCoords(lngLatToTileCoords(coords));
-};
+const drawPixel = (coords: LngLat) => drawPixelAtCoords(lngLatToTileCoords(coords));
 
 const handleDrawPixels = (coords: TileCoords[]) => {
 	for (const coord of coords) {
@@ -358,15 +545,13 @@ const handleMapClick = (event: LngLat) => {
 
 		if (now - lastClickTime < DOUBLE_CLICK_THRESHOLD && isPixelInfoOpen.value) {
 			// Double-click to zoom - dismiss pixel info
-			isPixelInfoOpen.value = false;
+			selectedPixelCoords.value = null;
 			return;
 		}
 
 		if (mapRef.value?.getZoom() < ZOOM_LEVEL) {
-			toast.add({
-				severity: "info",
-				summary: "Zoom in to view pixels",
-				life: 3000
+			showToast({
+				summary: "Zoom in to view pixels"
 			});
 			return;
 		}
@@ -374,17 +559,7 @@ const handleMapClick = (event: LngLat) => {
 		// Show pixel info
 		const tileCoords = lngLatToTileCoords(event);
 		selectedPixelCoords.value = tileCoords;
-		isPixelInfoOpen.value = true;
-
-		if (mapRef.value) {
-			const currentZoom = mapRef.value.getZoom();
-			const [lng, lat] = event;
-			const url = new URL(globalThis.location.href);
-			url.searchParams.set("lat", lat.toFixed(6));
-			url.searchParams.set("lng", lng.toFixed(6));
-			url.searchParams.set("zoom", currentZoom.toFixed(2));
-			globalThis.history.pushState({}, "", url);
-		}
+		pushMapLocation(event);
 	}
 };
 
@@ -395,14 +570,7 @@ const handleMapRightClick = (event: LngLat) => {
 
 	// Right-click in paint mode to erase
 	const tileCoords = lngLatToTileCoords(event);
-	const pixelId = getPixelId(tileCoords);
-	const existingPixelIndex = pixels.value.findIndex(item => item.id === pixelId);
-
-	if (existingPixelIndex !== -1) {
-		pixels.value = pixels.value.filter((_, index) => index !== existingPixelIndex);
-		incrementCharge();
-		mapRef.value?.drawPixelOnCanvas(tileCoords, "rgba(0,0,0,0)");
-	}
+	erasePixelAtCoords(tileCoords);
 };
 
 const toggleUserMenu = (event: Event) => {
@@ -421,6 +589,11 @@ const resetMapRotation = () => {
 	}
 };
 
+const handlePaintButtonClick = () => {
+	isPaintOpen.value = true;
+	pushMapLocation();
+};
+
 const handleSubmitPixels = async () => {
 	if (pixels.value.length === 0) {
 		return;
@@ -432,18 +605,22 @@ const handleSubmitPixels = async () => {
 			tileCoords: p.tileCoords,
 			color: p.color
 		}));
-		const results = await submitPixels(paintPixels);
+		await submitPixels(paintPixels);
 
-		// Commit the painted pixels to our local canvas
+		// Commit the painted pixels to our local state
 		mapRef.value?.commitCanvases();
+		commitPixels();
 
 		// Reset state
 		pixels.value = [];
 		isPaintOpen.value = false;
-	} catch (error: unknown) {
+	} catch (error) {
 		console.error("Failed to submit pixels:", error);
-		const message = error instanceof Error ? error.message : String(error);
+		handleError(error);
 	}
+
+	// Get new charges from server
+	updateUserProfile();
 };
 
 const handleLogin = () => {
@@ -456,33 +633,34 @@ const handleLogout = async () => {
 };
 
 const handleReportPixel = () => {
-	// TODO
+	showToast({
+		summary: "Reporting is not yet available. Please use the old frontend to report."
+	});
 };
 
 const handleFavoriteChanged = async () => {
-	// TODO
 	try {
+		lastUserProfileFetch = Date.now();
 		userProfile.value = await fetchUserProfile();
-	} catch (error: unknown) {
+	} catch (error) {
 		console.error("Failed to refresh user profile:", error);
+		handleError(error);
 	}
 };
 
 const handleFavoriteClick = (favorite: { id: number; name: string; latitude: number; longitude: number }) => {
+	// Center on favorite
 	const zoom = Math.max(mapRef.value.getZoom(), CLOSE_ZOOM_LEVEL);
 	mapRef.value.flyToLocation(favorite.latitude, favorite.longitude, zoom);
+	pushMapLocation([favorite.longitude, favorite.latitude], zoom);
 
 	// Open pixel info
 	const tileCoords = lngLatToTileCoords([favorite.longitude, favorite.latitude]);
 	selectedPixelCoords.value = tileCoords;
-	isPixelInfoOpen.value = true;
+};
 
-	// TODO: Make shared function for this
-	const url = new URL(globalThis.location.href);
-	url.searchParams.set("lat", favorite.latitude.toFixed(6));
-	url.searchParams.set("lng", favorite.longitude.toFixed(6));
-	url.searchParams.set("zoom", zoom.toFixed(2));
-	globalThis.history.pushState({}, "", url);
+const handleAbout = () => {
+	isAboutOpen.value = true;
 };
 
 const zoomIn = () => mapRef.value?.zoomIn();
@@ -504,24 +682,28 @@ const goToRandom = async () => {
 
 	isLoadingRandom.value = true;
 
-	const config = useRuntimeConfig();
-	const response = await fetch(`${config.public.backendUrl}/s0/tile/random`, {
-		credentials: "include"
-	});
+	try {
+		const config = useRuntimeConfig();
+		const data = await $fetch<{
+			pixel: { x: number; y: number };
+			tile: { x: number; y: number };
+		}>(`${config.public.backendUrl}/s0/tile/random`, {
+			credentials: "include"
+		});
 
-	const data = await response.json() as {
-		pixel: { x: number; y: number };
-		tile: { x: number; y: number };
-	};
-	const tileCoords: TileCoords = {
-		tile: [data.tile.x, data.tile.y],
-		pixel: [data.pixel.x, data.pixel.y]
-	};
-	const [lng, lat] = tileCoordsToLngLat(tileCoords);
+		const tileCoords: TileCoords = {
+			tile: [data.tile.x, data.tile.y],
+			pixel: [data.pixel.x, data.pixel.y]
+		};
+		const [lng, lat] = tileCoordsToLngLat(tileCoords);
 
-	randomTargetCoords.value = { lat, lng, zoom: CLOSE_ZOOM_LEVEL };
-	isAnimatingToRandom.value = true;
-	mapRef.value?.flyToLocation(lat, lng, CLOSE_ZOOM_LEVEL);
+		randomTargetCoords.value = { lat, lng, zoom: CLOSE_ZOOM_LEVEL };
+		isAnimatingToRandom.value = true;
+		mapRef.value?.flyToLocation(lat, lng, CLOSE_ZOOM_LEVEL);
+	} catch (error) {
+		console.error("Failed to get random pixel:", error);
+		handleError(error);
+	}
 
 	// To support skipping the animation by clicking the button again
 	setTimeout(() => {
@@ -538,7 +720,6 @@ const goToRandom = async () => {
 	width: 100vw;
 	height: 100dvh;
 	overflow: hidden;
-	user-select: none;
 }
 
 .map-loading {
@@ -614,19 +795,15 @@ const goToRandom = async () => {
 	position: relative;
 	z-index: 12;
 }
-</style>
 
-<style>
-/* Blue Marble fixes */
-#bm-A p,
-#bm-A hr,
-#bm-A h1 {
-	margin: 0;
+.app-overlays--button {
+	font-size: 1.1rem;
+	aspect-ratio: 1;
 }
 
-#bm-A input,
-#bm-A button,
-#bm-A textarea {
-	border: none;
+.app-overlays--avatar-button {
+	padding: 0;
+	margin: 0;
+	overflow: visible;
 }
 </style>

@@ -56,7 +56,7 @@ export class UserService {
 				alliance: true,
 				favoriteLocations: true
 			}
-		}) as any;
+		});
 
 		if (!user) {
 			throw new Error("User not found");
@@ -91,6 +91,7 @@ export class UserService {
 			discordUserId: user.discordUserId,
 			country: user.country,
 			banned: user.banned,
+			verified: user.verified,
 			suspensionReason: user.suspensionReason,
 			timeoutUntil: user.timeoutUntil.toISOString(),
 			charges: {
@@ -101,7 +102,7 @@ export class UserService {
 			droplets: user.droplets,
 			equippedFlag: user.equippedFlag,
 			extraColorsBitmap: user.extraColorsBitmap,
-			favoriteLocations: user.favoriteLocations.map((loc: any) => ({
+			favoriteLocations: user.favoriteLocations.map(loc => ({
 				id: loc.id,
 				name: loc.name,
 				latitude: loc.latitude,
@@ -199,7 +200,7 @@ export class UserService {
 			this.prisma.user.update({
 				where: { id: userId },
 				data: {
-					nickname: "Delete Account",
+					nickname: "Deleted Account",
 					role: "deleted"
 				}
 			})
@@ -237,6 +238,7 @@ export class UserService {
 					isolationLevel: "ReadCommitted"
 				});
 				break;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			} catch (error: any) {
 				retries--;
 				const isRetryableError = (

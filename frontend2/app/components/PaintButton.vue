@@ -1,18 +1,18 @@
 <template>
-  <Button
-    severity="info"
-    size="large"
-    raised
-    rounded
-    :class="['paint-button', { 'paint-button-shimmer': hasPendingPixels }]"
-    @click="$emit('click')"
-  >
-    <Icon name="paint" />
-    <span :class="{ 'shimmer-text': hasPendingPixels }">
-      Paint {{ charges.toLocaleString() }}/{{ maxCharges.toLocaleString() }}
-    </span>
-    <span class="paint-button-time">{{ timeUntilNext }}</span>
-  </Button>
+	<Button
+		severity="info"
+		size="large"
+		raised
+		rounded
+		:class="['paint-button', { 'paint-button-shimmer': hasPendingPixels }]"
+		@click="$emit('click')"
+	>
+		<Icon name="paint" class="paint-button-icon" />
+		<span :class="{ 'shimmer-text': hasPendingPixels }">
+			Paint {{ charges.toLocaleString() }}/{{ maxCharges.toLocaleString() }}
+		</span>
+		<span class="paint-button-time">{{ timeUntilNext }}</span>
+	</Button>
 </template>
 
 <script setup lang="ts">
@@ -36,11 +36,17 @@ defineEmits<{
 
 <style scoped>
 .paint-button {
+	font-weight: 600;
 	font-feature-settings: "tnum";
+}
+
+.paint-button-icon {
+	font-size: 1.5rem;
 }
 
 .paint-button-time {
 	font-size: 0.8em;
+	font-weight: 500;
 	vertical-align: baseline;
 }
 

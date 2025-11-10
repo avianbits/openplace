@@ -34,6 +34,7 @@
 		"milliparsec": "^5.1.0",
 		"multer": "^2.0.2",
 		"obscenity": "^0.4.5",
+		"sharp": "^0.34.4",
 		"sirv": "^3.0.2",
 		"tinyws": "^0.1.0",
 		"tsx": "^4.20.6",

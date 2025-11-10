@@ -24,6 +24,7 @@ interface LeaderboardEntry {
 export class LeaderboardService {
 	private updateQueue = new Set<string>();
 	private isUpdating = false;
+	private isWarmingUp = false;
 	private batchSize = 5;
 	private maxQueueSize = 1000;
 	private updateInterval = 3000;
@@ -207,7 +208,7 @@ export class LeaderboardService {
 	private async getRegionPlayersLeaderboard(cityId: number, limit: number, mode: LeaderboardMode = "all-time"): Promise<LeaderboardEntry[]> {
 		try {
 			// Get date filter like global leaderboard
-			const dateFilter = this.getDateFilter(mode, this.warmupSnapshotTime || undefined);
+			const dateFilter = this.getDateFilter(mode, this.warmupSnapshotTime ?? undefined);
 			let queryPromise;
 			if (mode === "all-time") {
 				queryPromise = prisma.userRegionStats.groupBy({
@@ -300,7 +301,7 @@ export class LeaderboardService {
 	private async getRegionAlliancesLeaderboard(cityId: number, limit: number, mode: LeaderboardMode = "all-time"): Promise<LeaderboardEntry[]> {
 		try {
 			// Time filter
-			const dateFilter = this.getDateFilter(mode, this.warmupSnapshotTime || undefined);
+			const dateFilter = this.getDateFilter(mode, this.warmupSnapshotTime ?? undefined);
 			let allianceStats;
 			if (mode === "all-time") {
 				allianceStats = await prisma.userRegionStats.groupBy({
@@ -688,7 +689,7 @@ export class LeaderboardService {
 				this.updateQueue.delete(cacheKey);
 
 				const [type, mode, entityIdStr] = cacheKey.split(":");
-				const entityId = entityIdStr === "all" ? undefined : Number.parseInt(entityIdStr || "0");
+				const entityId = entityIdStr === "all" ? undefined : Number.parseInt(entityIdStr ?? "0");
 
 				const item: { type: LeaderboardType; mode: LeaderboardMode; entityId?: number } = {
 					type: type as LeaderboardType,
@@ -1012,31 +1013,58 @@ export class LeaderboardService {
 	}
 
 	private async warmupGlobalLeaderboards(): Promise<void> {
-		const modes: LeaderboardMode[] = ["today", "week", "month", "all-time"];
-		const types: LeaderboardType[] = ["player", "alliance", "country", "region"];
+		if (this.isWarmingUp) {
+			return;
+		}
 
-		// Create snapshot timestamp for consistent data across all modes
-		this.warmupSnapshotTime = new Date();
+		this.isWarmingUp = true;
+		const startTime = Date.now();
+		const timeout = 5 * 60 * 1000;
+		let timeoutId: NodeJS.Timeout | null = null;
 
-		// Queue all updates at once for parallel processing
-		for (const type of types) {
-			for (const mode of modes) {
-				// Queue update with snapshot time for consistency
-				this.queueUpdate(type, mode);
+		try {
+			const warmupPromise = (async () => {
+				const modes: LeaderboardMode[] = ["today", "week", "month", "all-time"];
+				const types: LeaderboardType[] = ["player", "alliance", "country", "region"];
+
+				this.warmupSnapshotTime = new Date();
+
+				for (const type of types) {
+					for (const mode of modes) {
+						this.queueUpdate(type, mode);
+					}
+				}
+
+				if (!this.isUpdating) {
+					await this.processUpdateQueue();
+				}
+			})();
+
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				timeoutId = setTimeout(() => {
+					reject(new Error(`Warmup timeout after ${timeout}ms`));
+				}, timeout);
+			});
+
+			await Promise.race([warmupPromise, timeoutPromise]);
+
+			// const duration = Date.now() - startTime;
+			// console.log(`[LeaderboardService] Warmup completed in ${duration}ms`);
+		} catch (error) {
+			const duration = Date.now() - startTime;
+			console.error(`[LeaderboardService] Warmup failed after ${duration}ms:`, error);
+			throw error;
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId);
 			}
+			this.isWarmingUp = false;
+			this.warmupSnapshotTime = null;
 		}
-
-		// Process all updates in parallel batches
-		if (!this.isUpdating) {
-			await this.processUpdateQueue();
-		}
-
-		// Clear snapshot time after warmup
-		this.warmupSnapshotTime = null;
 	}
 
 	async invalidateLeaderboard(type: LeaderboardType, mode?: LeaderboardMode, entityId?: number): Promise<void> {
-		const cacheKey = this.getCacheKey(type, mode || "all-time", entityId);
+		const cacheKey = this.getCacheKey(type, mode ?? "all-time", entityId);
 
 		if (this.updateQueue.size >= this.maxQueueSize) {
 			console.warn(`Leaderboard queue overflow (${this.updateQueue.size}/${this.maxQueueSize}), dropping oldest 100 entries`);

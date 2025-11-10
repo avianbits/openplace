@@ -20,7 +20,7 @@
 		</div>
 		<div id="success" style="display: none;">
 			<p>Discord account linked successfully!</p>
-			<a href="/">Back to Home</a>
+			<button class="secondary-button skipButton">Not now</button>
 		</div>
 	</div>
 
@@ -31,7 +31,6 @@
 		const contentDiv = document.getElementById("content");
 		const successDiv = document.getElementById("success");
 		const linkButton = document.getElementById("linkButton");
-
 		try {
 			const meRes = await fetch("/me", {
 				credentials: "include"
@@ -51,11 +50,11 @@
 					<p><strong>Discord Username:</strong> ${userData.discord || "Unknown"}</p>
 					<a href="/discord/unlink">Unlink Discord Account</a>
 					<br><br>
-					<a href="/">Back to Home</a>
+					<button class="secondary-button skipButton">Back to Home</button>
 				`;
 				return;
 			}
-
+				
 			const configRes = await fetch("/discord/configured");
 			if (!configRes.ok) {
 				statusDiv.textContent = "Discord linking is not available.";
@@ -65,7 +64,18 @@
 
 			statusDiv.style.display = "none";
 			contentDiv.style.display = "block";
+				skipButton.addEventListener("click", async () => {
+					try {
+						skipButton.disabled = true;
+						skipButton.textContent = "Redirecting...";
 
+						window.location.href = "/";
+					} catch (error) {
+						errorDiv.textContent = error.message;
+						skipButton.disabled = false;
+						skipButton.textContent = "Back to home";
+					}
+				});
 			linkButton.addEventListener("click", async () => {
 				try {
 					linkButton.disabled = true;
@@ -86,6 +96,24 @@
 					linkButton.disabled = false;
 					linkButton.textContent = "Link Discord Account";
 				}
+				// idk why the skip button is throwing a fit with the event listener sooooo this is gonna have to do ig - toby
+				function attachSkipListeners() {
+					document.querySelectorAll('.skipButton').forEach(btn => {
+						btn.onclick = async (event) => {
+							try {
+								btn.disabled = true;
+								btn.textContent = 'Redirecting...';
+								window.location.href = '/';
+							} catch (error) {
+								errorDiv.textContent = error.message;
+								btn.disabled = false;
+								btn.textContent = 'Not now';
+							}
+						};
+					});
+				}
+
+				attachSkipListeners();
 			});
 		} catch (error) {
 			statusDiv.textContent = "An error occurred.";

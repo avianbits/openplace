@@ -9,6 +9,7 @@ import moderator from "./routes/moderator.js";
 import pixel from "./routes/pixel.js";
 import reportUser from "./routes/report-user.js";
 import store from "./routes/store.js";
+import checkrobots from "./routes/checkrobots.js";
 
 import { App } from "@tinyhttp/app";
 
@@ -25,5 +26,6 @@ moderator(app);
 pixel(app);
 reportUser(app);
 store(app);
+checkrobots(app);
 
 export default app;

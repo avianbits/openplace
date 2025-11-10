@@ -8,7 +8,6 @@ import { createErrorResponse, HTTP_STATUS } from "../utils/response.js";
 import { AuthenticatedRequest } from "../types/index.js";
 import { discordBot } from "../discord/bot.js";
 import { ACTIVE_COOLDOWN_MS, BOOSTER_COOLDOWN_MS } from "../services/user.js";
-import { prisma } from "../config/database.js";
 
 const discordService = new DiscordService();
 
@@ -31,6 +30,16 @@ export default function (app: App) {
 		}
 
 		const html = await fs.readFile("./src/public/discord-link.html", "utf8");
+		res.setHeader("Content-Type", "text/html");
+		return res.send(html);
+	});
+	
+	app.get("/registration/link", optionalAuthMiddleware, async (req: AuthenticatedRequest, res) => {
+		if (!req.user) {
+			return res.redirect("/login");
+		}
+
+		const html = await fs.readFile("./src/public/login-nextstep.html", "utf8");
 		res.setHeader("Content-Type", "text/html");
 		return res.send(html);
 	});
@@ -125,7 +134,7 @@ export default function (app: App) {
 				} else if (cooldown === ACTIVE_COOLDOWN_MS) {
 					cooldownMessage = `<p><strong>Thanks for being an active server member!</strong> Your paint cooldown has been set to ${seconds} seconds.</p>`;
 				} else {
-					cooldownMessage = `<p>You’re not eligible for any boosts at this time. Check the Discord server’s rules for more information on when you will automatically receive boosts.</p>`;
+					cooldownMessage = `<p>You’re not eligible for any boosts at this time. You will receive a notification when you become eligible.</p>`;
 				}
 			} else {
 				cooldownMessage = `<p>Unable to check Discord roles. Your cooldown will be updated when the bot syncs.</p>`;
@@ -143,8 +152,28 @@ export default function (app: App) {
 						<h1>Success!</h1>
 						<p>Your Discord account (${discordUser.username}) has been linked.</p>
 						${cooldownMessage}
-						<a href="/">Back to Home</a>
+						<button class="skipButton">Back to Home</button>
 					</div>
+					<script>
+								// idk why the skip button is throwing a fit with the event listener sooooo this is gonna have to do ig - toby
+								function attachSkipListeners() {
+									document.querySelectorAll('.skipButton').forEach(btn => {
+										btn.onclick = async (event) => {
+											try {
+												btn.disabled = true;
+												btn.textContent = 'Redirecting...';
+												window.location.href = '/';
+											} catch (error) {
+												errorDiv.textContent = error.message;
+												btn.disabled = false;
+												btn.textContent = 'Not now';
+											}
+										};
+									});
+								}
+
+								attachSkipListeners();
+					</script>
 				</body>
 				</html>
 			`);
